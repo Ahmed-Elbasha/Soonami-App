@@ -45,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
 
     /** URL to query the USGS dataset for earthquake information */
     private static final String USGS_REQUEST_URL =
-            "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2012-01-01&endtime=2012-12-01&minmagnitude=6";
+            "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2014-01-01&endtime=2014-12-01&minmagnitude=7";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -157,15 +157,24 @@ public class MainActivity extends AppCompatActivity {
             HttpURLConnection urlConnection = null;
             InputStream inputStream = null;
             try {
+                if (url == null) {
+                    return jsonResponse;
+                }
                 urlConnection = (HttpURLConnection) url.openConnection();
                 urlConnection.setRequestMethod("GET");
-                urlConnection.setReadTimeout(10000 /* milliseconds */);
-                urlConnection.setConnectTimeout(15000 /* milliseconds */);
+                urlConnection.setReadTimeout(100000 /* milliseconds */);
+                urlConnection.setConnectTimeout(100000 /* milliseconds */);
                 urlConnection.connect();
-                inputStream = urlConnection.getInputStream();
-                jsonResponse = readFromStream(inputStream);
+
+                if (urlConnection.getResponseCode() == 200) {
+                    inputStream = urlConnection.getInputStream();
+                    jsonResponse = readFromStream(inputStream);
+                } else {
+                    Log.e(LOG_TAG, "Error response code: " + urlConnection.getResponseCode());
+                }
+
             } catch (IOException e) {
-                // TODO: Handle the exception
+                Log.e(LOG_TAG, "an error is occurred during making Http Request. " + e.getLocalizedMessage());
             } finally {
                 if (urlConnection != null) {
                     urlConnection.disconnect();
@@ -201,28 +210,32 @@ public class MainActivity extends AppCompatActivity {
          * about the first earthquake from the input earthquakeJSON string.
          */
         private Event extractFeatureFromJson(String earthquakeJSON) {
-            try {
-                JSONObject baseJsonResponse = new JSONObject(earthquakeJSON);
-                JSONArray featureArray = baseJsonResponse.getJSONArray("features");
+            if (TextUtils.isText(earthquakeJSON)) {
+                try {
+                    JSONObject baseJsonResponse = new JSONObject(earthquakeJSON);
+                    JSONArray featureArray = baseJsonResponse.getJSONArray("features");
 
-                // If there are results in the features array
-                if (featureArray.length() > 0) {
-                    // Extract out the first feature (which is an earthquake)
-                    JSONObject firstFeature = featureArray.getJSONObject(0);
-                    JSONObject properties = firstFeature.getJSONObject("properties");
+                    // If there are results in the features array
+                    if (featureArray.length() > 0) {
+                        // Extract out the first feature (which is an earthquake)
+                        JSONObject firstFeature = featureArray.getJSONObject(0);
+                        JSONObject properties = firstFeature.getJSONObject("properties");
 
-                    // Extract out the title, time, and tsunami values
-                    String title = properties.getString("title");
-                    long time = properties.getLong("time");
-                    int tsunamiAlert = properties.getInt("tsunami");
+                        // Extract out the title, time, and tsunami values
+                        String title = properties.getString("title");
+                        long time = properties.getLong("time");
+                        int tsunamiAlert = properties.getInt("tsunami");
 
-                    // Create a new {@link Event} object
-                    return new Event(title, time, tsunamiAlert);
+                        // Create a new {@link Event} object
+                        return new Event(title, time, tsunamiAlert);
+                    }
+                } catch (JSONException e) {
+                    Log.e(LOG_TAG, "Problem parsing the earthquake JSON results", e);
                 }
-            } catch (JSONException e) {
-                Log.e(LOG_TAG, "Problem parsing the earthquake JSON results", e);
+                return null;
+            } else  {
+                return  null;
             }
-            return null;
         }
     }
 }
